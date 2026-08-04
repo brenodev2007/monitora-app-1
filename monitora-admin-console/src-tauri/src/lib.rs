@@ -2,6 +2,7 @@ mod comandos;
 mod db;
 mod estado;
 mod models;
+mod persistencia;
 mod simulador;
 
 use estado::Estado;
@@ -14,19 +15,17 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .manage(estado.clone())
-        .setup(move |_| {
-            let estado_setup = estado.clone();
-            tauri::async_runtime::spawn(async move {
-                let _ = db::ensure_ready(&estado_setup).await;
-            });
-            Ok(())
-        })
+        .setup(move |_app| Ok(()))
         .invoke_handler(tauri::generate_handler![
             comandos::autenticar,
             comandos::listar_servicos,
             comandos::listar_alertas,
             comandos::resolver_alerta,
             comandos::status_conexao,
+            comandos::listar_conexoes,
+            comandos::salvar_conexao,
+            comandos::atualizar_conexao,
+            comandos::deletar_conexao,
             comandos::conectar_websocket,
             comandos::desconectar_websocket,
         ])

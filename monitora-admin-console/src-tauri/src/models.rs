@@ -124,3 +124,10 @@ pub struct StatusConexao {
     pub conectado: bool,
     pub ultima_tentativa_em: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConexaoSalva {
+    pub id: String,
+    pub nome: String,
+    pub url: String,
+}

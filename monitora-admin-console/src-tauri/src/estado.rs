@@ -1,4 +1,4 @@
-use crate::models::{Alerta, Servico, StatusConexao};
+use crate::models::{Alerta, ConexaoSalva, Servico, StatusConexao};
 use sqlx::mysql::MySqlPool;
 use std::sync::Mutex;
 use tauri::async_runtime::JoinHandle;
@@ -14,7 +14,7 @@ pub struct Estado {
     pub autenticado: Mutex<bool>,
     pub ws_url: Mutex<String>,
     pub ws_task: Mutex<Option<JoinHandle<()>>>,
-    pub db_pool: Mutex<Option<MySqlPool>>,
+    pub conexoes_salvas: Mutex<Vec<ConexaoSalva>>,
 }
 
 impl Default for Estado {
@@ -29,7 +29,7 @@ impl Default for Estado {
             autenticado: Mutex::new(false),
             ws_url: Mutex::new(String::new()),
             ws_task: Mutex::new(None),
-            db_pool: Mutex::new(None),
+            conexoes_salvas: Mutex::new(Vec::new()),
         }
     }
 }

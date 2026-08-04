@@ -2,6 +2,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { Alerta, Heartbeat, Servico, StatusConexao } from "@/types/monitora";
 
+export interface ConexaoSalva {
+  id: string;
+  nome: string;
+  url: string;
+}
+
 /**
  * Ponto único de contato com o processo principal (Rust).
  * A UI nunca fala diretamente com a "conexão" — ela chama comandos e
@@ -19,6 +25,16 @@ export const bridge = {
   resolverAlerta: (id: string) => invoke<boolean>("resolver_alerta", { id }),
 
   statusConexao: () => invoke<StatusConexao>("status_conexao"),
+
+  listarConexoes: () => invoke<ConexaoSalva[]>("listar_conexoes"),
+
+  salvarConexao: (nome: string, url: string) =>
+    invoke<ConexaoSalva[]>("salvar_conexao", { nome, url }),
+
+  atualizarConexao: (id: string, nome: string, url: string) =>
+    invoke<ConexaoSalva[]>("atualizar_conexao", { id, nome, url }),
+
+  deletarConexao: (id: string) => invoke<ConexaoSalva[]>("deletar_conexao", { id }),
 
   conectarWebSocket: (url: string) => invoke<boolean>("conectar_websocket", { url }),
 

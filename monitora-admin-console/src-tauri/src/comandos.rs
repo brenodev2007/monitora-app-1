@@ -1,6 +1,7 @@
 use crate::db;
 use crate::estado::Estado;
-use crate::models::{Alerta, Servico, StatusConexao};
+use crate::models::{Alerta, ConexaoSalva, Servico, StatusConexao};
+use crate::persistencia;
 use chrono::Utc;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
@@ -33,6 +34,64 @@ pub async fn resolver_alerta(estado: State<'_, Arc<Estado>>, id: String) -> Resu
 #[tauri::command]
 pub fn status_conexao(estado: State<'_, Arc<Estado>>) -> StatusConexao {
     estado.conectado.lock().unwrap().clone()
+}
+
+#[tauri::command]
+pub fn listar_conexoes(estado: State<'_, Arc<Estado>>, app: AppHandle) -> Vec<ConexaoSalva> {
+    let mut conexoes = estado.conexoes_salvas.lock().unwrap();
+    if conexoes.is_empty() {
+        *conexoes = persistencia::carregar_conexoes(&app);
+    }
+    conexoes.clone()
+}
+
+#[tauri::command]
+pub fn salvar_conexao(estado: State<'_, Arc<Estado>>, app: AppHandle, nome: String, url: String) -> Vec<ConexaoSalva> {
+    let nome = nome.trim().to_string();
+    let url = url.trim().to_string();
+    if nome.is_empty() || url.is_empty() {
+        return listar_conexoes(estado.clone(), app.clone());
+    }
+
+    let mut conexoes = estado.conexoes_salvas.lock().unwrap();
+    let id = format!("conn-{}", chrono::Utc::now().timestamp_millis());
+    conexoes.push(ConexaoSalva { id, nome, url });
+    let snapshot = conexoes.clone();
+    drop(conexoes);
+
+    let _ = persistencia::salvar_conexoes(&app, &snapshot);
+    snapshot
+}
+
+#[tauri::command]
+pub fn atualizar_conexao(estado: State<'_, Arc<Estado>>, app: AppHandle, id: String, nome: String, url: String) -> Vec<ConexaoSalva> {
+    let nome = nome.trim().to_string();
+    let url = url.trim().to_string();
+    if nome.is_empty() || url.is_empty() {
+        return listar_conexoes(estado.clone(), app.clone());
+    }
+
+    let mut conexoes = estado.conexoes_salvas.lock().unwrap();
+    if let Some(item) = conexoes.iter_mut().find(|item| item.id == id) {
+        item.nome = nome;
+        item.url = url;
+    }
+    let snapshot = conexoes.clone();
+    drop(conexoes);
+
+    let _ = persistencia::salvar_conexoes(&app, &snapshot);
+    snapshot
+}
+
+#[tauri::command]
+pub fn deletar_conexao(estado: State<'_, Arc<Estado>>, app: AppHandle, id: String) -> Vec<ConexaoSalva> {
+    let mut conexoes = estado.conexoes_salvas.lock().unwrap();
+    conexoes.retain(|item| item.id != id);
+    let snapshot = conexoes.clone();
+    drop(conexoes);
+
+    let _ = persistencia::salvar_conexoes(&app, &snapshot);
+    snapshot
 }
 
 #[tauri::command]
