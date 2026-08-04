@@ -1,5 +1,6 @@
 use crate::models::{Alerta, Servico, StatusConexao};
 use std::sync::Mutex;
+use tauri::async_runtime::JoinHandle;
 
 /// Estado central mantido no processo principal (Rust), nunca exposto
 /// diretamente ao renderer. A UI só recebe cópias via commands/eventos.
@@ -10,6 +11,8 @@ pub struct Estado {
     pub alertas: Mutex<Vec<Alerta>>,
     pub conectado: Mutex<StatusConexao>,
     pub autenticado: Mutex<bool>,
+    pub ws_url: Mutex<String>,
+    pub ws_task: Mutex<Option<JoinHandle<()>>>,
 }
 
 impl Default for Estado {
@@ -22,6 +25,8 @@ impl Default for Estado {
                 ultima_tentativa_em: String::new(),
             }),
             autenticado: Mutex::new(false),
+            ws_url: Mutex::new(String::new()),
+            ws_task: Mutex::new(None),
         }
     }
 }

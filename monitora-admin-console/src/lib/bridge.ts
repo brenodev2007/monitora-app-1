@@ -20,6 +20,10 @@ export const bridge = {
 
   statusConexao: () => invoke<StatusConexao>("status_conexao"),
 
+  conectarWebSocket: (url: string) => invoke<boolean>("conectar_websocket", { url }),
+
+  desconectarWebSocket: () => invoke<boolean>("desconectar_websocket"),
+
   onConexaoStatus(cb: (status: StatusConexao) => void): Promise<UnlistenFn> {
     return listen<StatusConexao>("conexao:status", (e) => cb(e.payload));
   },

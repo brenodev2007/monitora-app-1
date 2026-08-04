@@ -13,16 +13,15 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .manage(estado.clone())
-        .setup(move |app| {
-            simulador::iniciar(app.handle().clone(), estado.clone());
-            Ok(())
-        })
+        .setup(move |_app| Ok(()))
         .invoke_handler(tauri::generate_handler![
             comandos::autenticar,
             comandos::listar_servicos,
             comandos::listar_alertas,
             comandos::resolver_alerta,
             comandos::status_conexao,
+            comandos::conectar_websocket,
+            comandos::desconectar_websocket,
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar o MONITORA+ Admin");
