@@ -1,0 +1,41 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme {
+  --font-display: "IBM Plex Sans", "Inter", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace;
+
+  --color-base: #0b1210;
+  --color-surface: #101a17;
+  --color-surface-2: #16221e;
+  --color-border: #22322c;
+  --color-ink: #eaf2ee;
+  --color-ink-dim: #93a6a0;
+
+  --color-ok: #2fd68f;
+  --color-atraso: #f2b84b;
+  --color-falha: #f2564b;
+  --color-brand: #14b8a6;
+}
+
+body {
+  background-color: var(--color-base);
+  color: var(--color-ink);
+  font-family: var(--font-display);
+}
+
+.font-mono-tab {
+  font-family: var(--font-mono);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-brand) 35%, transparent);
+}
+
+.scrollbar-fina::-webkit-scrollbar {
+  width: 8px;
+}
+.scrollbar-fina::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 8px;
+}
