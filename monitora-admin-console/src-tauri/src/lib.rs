@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    dotenvy::dotenv().ok();
     let estado = Arc::new(Estado::default());
 
     tauri::Builder::default()

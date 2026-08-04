@@ -57,15 +57,30 @@ pub async fn ensure_ready(estado: &Arc<Estado>) -> Result<(), String> {
     let host = env::var("DB_HOST").unwrap_or_else(|_| "localhost".to_string());
     let port = env::var("DB_PORT").unwrap_or_else(|_| "3306".to_string());
     let user = env::var("DB_USER").unwrap_or_else(|_| "root".to_string());
-    let password = env::var("DB_PASSWORD").unwrap_or_else(|_| "cocinfo018".to_string());
+    let password = env::var("DB_PASSWORD").unwrap_or_else(|_| "root".to_string());
     let database_name = env::var("DB_NAME").unwrap_or_else(|_| "monitora".to_string());
     let base_url = format!("mysql://{user}:{password}@{host}:{port}/");
 
-    let admin_pool = MySqlPoolOptions::new()
-        .max_connections(1)
-        .connect(&base_url)
-        .await
-        .map_err(|err| format!("Falha ao conectar ao MySQL para criar o banco: {err}"))?;
+    let mut tentativas = 0;
+    let max_tentativas = 10;
+    let admin_pool = loop {
+        match MySqlPoolOptions::new()
+            .max_connections(1)
+            .connect(&base_url)
+            .await
+        {
+            Ok(p) => break p,
+            Err(err) => {
+                tentativas += 1;
+                if tentativas >= max_tentativas {
+                    return Err(format!(
+                        "Falha ao conectar ao MySQL após {max_tentativas} tentativas ({host}:{port}): {err}"
+                    ));
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+            }
+        }
+    };
 
     sqlx::query(&format!("CREATE DATABASE IF NOT EXISTS `{database_name}`"))
         .execute(&admin_pool)
