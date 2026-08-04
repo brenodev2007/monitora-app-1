@@ -1,4 +1,4 @@
-use crate::models::{Alerta, Servico};
+use crate::models::{Alerta, Servico, StatusConexao};
 use std::sync::Mutex;
 
 /// Estado central mantido no processo principal (Rust), nunca exposto
@@ -8,7 +8,7 @@ use std::sync::Mutex;
 pub struct Estado {
     pub servicos: Mutex<Vec<Servico>>,
     pub alertas: Mutex<Vec<Alerta>>,
-    pub conectado: Mutex<bool>,
+    pub conectado: Mutex<StatusConexao>,
     pub autenticado: Mutex<bool>,
 }
 
@@ -17,7 +17,10 @@ impl Default for Estado {
         Self {
             servicos: Mutex::new(Vec::new()),
             alertas: Mutex::new(Vec::new()),
-            conectado: Mutex::new(false),
+            conectado: Mutex::new(StatusConexao {
+                conectado: false,
+                ultima_tentativa_em: String::new(),
+            }),
             autenticado: Mutex::new(false),
         }
     }

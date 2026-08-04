@@ -1,5 +1,5 @@
 use crate::estado::Estado;
-use crate::models::{Alerta, CanalAlerta, Heartbeat, Metricas, Servico, StatusConexao, StatusServico, TipoServico};
+use crate::models::{Alerta, CanalAlerta, Heartbeat, Metricas, Servico, StatusServico, TipoServico};
 use chrono::Utc;
 use rand::Rng;
 use std::sync::Arc;
@@ -49,11 +49,13 @@ pub fn iniciar(app: AppHandle, estado: Arc<Estado>) {
     tauri::async_runtime::spawn(async move {
         // "Handshake" inicial de conexão
         tokio::time::sleep(std::time::Duration::from_millis(600)).await;
-        *estado.conectado.lock().unwrap() = true;
-        let _ = app.emit(
-            "conexao:status",
-            StatusConexao { conectado: true, ultima_tentativa_em: agora_iso() },
-        );
+        {
+            let mut conexao = estado.conectado.lock().unwrap();
+            conexao.conectado = true;
+            conexao.ultima_tentativa_em = agora_iso();
+        }
+        let status = estado.conectado.lock().unwrap().clone();
+        let _ = app.emit("conexao:status", status);
         let snapshot = estado.servicos.lock().unwrap().clone();
         let _ = app.emit("servicos:sincronizados", snapshot);
 

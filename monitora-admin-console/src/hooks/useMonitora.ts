@@ -51,7 +51,7 @@ export function useMonitora() {
 
     bridge.listarServicos().then(setServicos).catch(() => {});
     bridge.listarAlertas().then(setAlertas).catch(() => {});
-    bridge.statusConexao().then(setConectado).catch(() => {});
+    bridge.statusConexao().then((status) => setConectado(status.conectado)).catch(() => {});
 
     return () => {
       unlisteners.forEach((p) => p.then((fn) => fn()));

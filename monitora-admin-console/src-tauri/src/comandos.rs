@@ -1,5 +1,5 @@
 use crate::estado::Estado;
-use crate::models::{Alerta, Servico};
+use crate::models::{Alerta, Servico, StatusConexao};
 use std::sync::Arc;
 use tauri::State;
 
@@ -36,6 +36,6 @@ pub fn resolver_alerta(estado: State<Arc<Estado>>, id: String) -> bool {
 }
 
 #[tauri::command]
-pub fn status_conexao(estado: State<Arc<Estado>>) -> bool {
-    *estado.conectado.lock().unwrap()
+pub fn status_conexao(estado: State<Arc<Estado>>) -> StatusConexao {
+    estado.conectado.lock().unwrap().clone()
 }

@@ -18,7 +18,7 @@ export const bridge = {
 
   resolverAlerta: (id: string) => invoke<boolean>("resolver_alerta", { id }),
 
-  statusConexao: () => invoke<boolean>("status_conexao"),
+  statusConexao: () => invoke<StatusConexao>("status_conexao"),
 
   onConexaoStatus(cb: (status: StatusConexao) => void): Promise<UnlistenFn> {
     return listen<StatusConexao>("conexao:status", (e) => cb(e.payload));
