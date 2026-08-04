@@ -1,4 +1,5 @@
 mod comandos;
+mod db;
 mod estado;
 mod models;
 mod simulador;
@@ -13,7 +14,13 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .manage(estado.clone())
-        .setup(move |_app| Ok(()))
+        .setup(move |_| {
+            let estado_setup = estado.clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = db::ensure_ready(&estado_setup).await;
+            });
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             comandos::autenticar,
             comandos::listar_servicos,

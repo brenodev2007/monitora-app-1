@@ -8,12 +8,48 @@ pub enum TipoServico {
     Backup,
 }
 
+impl TipoServico {
+    pub fn as_db(self) -> &'static str {
+        match self {
+            Self::Api => "api",
+            Self::Servidor => "servidor",
+            Self::Backup => "backup",
+        }
+    }
+
+    pub fn from_db(value: &str) -> Self {
+        match value.to_lowercase().as_str() {
+            "servidor" => Self::Servidor,
+            "backup" => Self::Backup,
+            _ => Self::Api,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum StatusServico {
     Ok,
     Atraso,
     Falha,
+}
+
+impl StatusServico {
+    pub fn as_db(self) -> &'static str {
+        match self {
+            Self::Ok => "ok",
+            Self::Atraso => "atraso",
+            Self::Falha => "falha",
+        }
+    }
+
+    pub fn from_db(value: &str) -> Self {
+        match value.to_lowercase().as_str() {
+            "atraso" => Self::Atraso,
+            "falha" => Self::Falha,
+            _ => Self::Ok,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,6 +88,24 @@ pub enum CanalAlerta {
     Email,
     Whatsapp,
     Discord,
+}
+
+impl CanalAlerta {
+    pub fn as_db(self) -> &'static str {
+        match self {
+            Self::Email => "email",
+            Self::Whatsapp => "whatsapp",
+            Self::Discord => "discord",
+        }
+    }
+
+    pub fn from_db(value: &str) -> Self {
+        match value.to_lowercase().as_str() {
+            "whatsapp" => Self::Whatsapp,
+            "discord" => Self::Discord,
+            _ => Self::Email,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

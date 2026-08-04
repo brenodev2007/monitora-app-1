@@ -19,6 +19,8 @@ rand = "0.8"
 futures-util = "0.3"
 tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
 url = "2"
+sqlx = { version = "0.8", features = ["runtime-tokio-native-tls", "mysql", "macros"] }
+dotenvy = "0.15"
 
 [lib]
 name = "admin_desktop_lib"

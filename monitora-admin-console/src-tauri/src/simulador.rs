@@ -1,3 +1,4 @@
+use crate::db;
 use crate::estado::Estado;
 use crate::models::{Alerta, Heartbeat, Servico, StatusConexao};
 use chrono::Utc;
@@ -90,28 +91,34 @@ async fn processar_mensagem(app: &AppHandle, estado: &Arc<Estado>, texto: &str) 
             "heartbeat:recebido" => {
                 if let Some(hb) = extrair_heartbeat(&valor) {
                     let servico_id = hb.servico_id.clone();
-                    let mut servicos = estado.servicos.lock().unwrap();
-                    for servico in servicos.iter_mut() {
-                        if servico.id == servico_id {
-                            servico.status = hb.status;
-                            servico.ultimo_heartbeat_em = Some(hb.recebido_em.clone());
-                            servico.historico.push(hb.clone());
-                            if servico.historico.len() > 40 {
-                                servico.historico.remove(0);
+                    {
+                        let mut servicos = estado.servicos.lock().unwrap();
+                        for servico in servicos.iter_mut() {
+                            if servico.id == servico_id {
+                                servico.status = hb.status;
+                                servico.ultimo_heartbeat_em = Some(hb.recebido_em.clone());
+                                servico.historico.push(hb.clone());
+                                if servico.historico.len() > 40 {
+                                    servico.historico.remove(0);
+                                }
+                                break;
                             }
-                            break;
                         }
                     }
+                    let _ = db::salvar_heartbeat(estado, hb.clone()).await;
                     let _ = app.emit("heartbeat:recebido", (servico_id, hb));
                 }
             }
             "alerta:novo" => {
                 if let Some(alerta) = extrair_alerta(&valor) {
-                    let mut alertas = estado.alertas.lock().unwrap();
-                    alertas.insert(0, alerta.clone());
-                    if alertas.len() > 100 {
-                        alertas.truncate(100);
+                    {
+                        let mut alertas = estado.alertas.lock().unwrap();
+                        alertas.insert(0, alerta.clone());
+                        if alertas.len() > 100 {
+                            alertas.truncate(100);
+                        }
                     }
+                    let _ = db::salvar_alerta(estado, alerta.clone()).await;
                     let _ = app.emit("alerta:novo", alerta);
                     let _ = app
                         .notification()
@@ -143,28 +150,34 @@ async fn processar_mensagem(app: &AppHandle, estado: &Arc<Estado>, texto: &str) 
 
     if let Some(hb) = extrair_heartbeat(&valor) {
         let servico_id = hb.servico_id.clone();
-        let mut servicos = estado.servicos.lock().unwrap();
-        for servico in servicos.iter_mut() {
-            if servico.id == servico_id {
-                servico.status = hb.status;
-                servico.ultimo_heartbeat_em = Some(hb.recebido_em.clone());
-                servico.historico.push(hb.clone());
-                if servico.historico.len() > 40 {
-                    servico.historico.remove(0);
+        {
+            let mut servicos = estado.servicos.lock().unwrap();
+            for servico in servicos.iter_mut() {
+                if servico.id == servico_id {
+                    servico.status = hb.status;
+                    servico.ultimo_heartbeat_em = Some(hb.recebido_em.clone());
+                    servico.historico.push(hb.clone());
+                    if servico.historico.len() > 40 {
+                        servico.historico.remove(0);
+                    }
+                    break;
                 }
-                break;
             }
         }
+        let _ = db::salvar_heartbeat(estado, hb.clone()).await;
         let _ = app.emit("heartbeat:recebido", (servico_id, hb));
         return Ok(());
     }
 
     if let Some(alerta) = extrair_alerta(&valor) {
-        let mut alertas = estado.alertas.lock().unwrap();
-        alertas.insert(0, alerta.clone());
-        if alertas.len() > 100 {
-            alertas.truncate(100);
+        {
+            let mut alertas = estado.alertas.lock().unwrap();
+            alertas.insert(0, alerta.clone());
+            if alertas.len() > 100 {
+                alertas.truncate(100);
+            }
         }
+        let _ = db::salvar_alerta(estado, alerta.clone()).await;
         let _ = app.emit("alerta:novo", alerta);
         return Ok(());
     }
