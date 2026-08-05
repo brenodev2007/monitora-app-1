@@ -15,6 +15,7 @@ pub struct Estado {
     pub ws_url: Mutex<String>,
     pub ws_task: Mutex<Option<JoinHandle<()>>>,
     pub conexoes_salvas: Mutex<Vec<ConexaoSalva>>,
+    pub db_pool: Mutex<Option<MySqlPool>>,
 }
 
 impl Default for Estado {
@@ -30,6 +31,7 @@ impl Default for Estado {
             ws_url: Mutex::new(String::new()),
             ws_task: Mutex::new(None),
             conexoes_salvas: Mutex::new(Vec::new()),
+            db_pool: Mutex::new(None),
         }
     }
 }

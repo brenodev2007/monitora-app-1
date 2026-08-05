@@ -1,7 +1,6 @@
 use crate::models::ConexaoSalva;
 use std::fs;
 use std::path::PathBuf;
-use tauri::path::BaseDirectory;
 use tauri::Manager;
 
 pub fn caminho_arquivo(app: &tauri::AppHandle) -> PathBuf {
