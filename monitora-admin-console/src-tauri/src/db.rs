@@ -6,6 +6,8 @@ use sqlx::mysql::{MySqlConnectOptions, MySqlPool, MySqlPoolOptions};
 use std::{env, str::FromStr, sync::Arc};
 use uuid::Uuid;
 
+
+#[allow(dead_code)]
 #[derive(sqlx::FromRow)]
 struct UsuarioRow {
     id: String,
@@ -61,6 +63,8 @@ pub async fn ensure_ready(estado: &Arc<Estado>) -> Result<(), String> {
     let database_name = env::var("DB_NAME").unwrap_or_else(|_| "monitora".to_string());
     let base_url = format!("mysql://{user}:{password}@{host}:{port}/");
 
+    log::info!("[DB] Iniciando conexão com MySQL em {}:{} (banco: {})", host, port, database_name);
+
     let mut tentativas = 0;
     let max_tentativas = 10;
     let admin_pool = loop {
@@ -69,32 +73,56 @@ pub async fn ensure_ready(estado: &Arc<Estado>) -> Result<(), String> {
             .connect(&base_url)
             .await
         {
-            Ok(p) => break p,
+            Ok(p) => {
+                log::info!("[DB] Conexão administrativa com MySQL estabelecida (tentativa {}/{})", tentativas + 1, max_tentativas);
+                break p;
+            }
             Err(err) => {
                 tentativas += 1;
+                log::warn!(
+                    "[DB] Falha ao conectar ao MySQL (tentativa {}/{}): {}",
+                    tentativas, max_tentativas, err
+                );
                 if tentativas >= max_tentativas {
-                    return Err(format!(
+                    let msg = format!(
                         "Falha ao conectar ao MySQL após {max_tentativas} tentativas ({host}:{port}): {err}"
-                    ));
+                    );
+                    log::error!("[DB] {}", msg);
+                    return Err(msg);
                 }
                 tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
             }
         }
     };
 
+    log::info!("[DB] Criando banco de dados '{}' se necessário...", database_name);
     sqlx::query(&format!("CREATE DATABASE IF NOT EXISTS `{database_name}`"))
         .execute(&admin_pool)
         .await
-        .map_err(|err| format!("Falha ao criar o banco de dados: {err}"))?;
+        .map_err(|err| {
+            let msg = format!("Falha ao criar o banco de dados: {err}");
+            log::error!("[DB] {}", msg);
+            msg
+        })?;
 
     let database_url = format!("mysql://{user}:{password}@{host}:{port}/{database_name}");
-    let options = MySqlConnectOptions::from_str(&database_url)
-        .map_err(|err| format!("URL de conexão inválida: {err}"))?;
+    let options = MySqlConnectOptions::from_str(&database_url).map_err(|err| {
+        let msg = format!("URL de conexão inválida: {err}");
+        log::error!("[DB] {}", msg);
+        msg
+    })?;
+
     let pool = MySqlPoolOptions::new()
         .max_connections(10)
         .connect_with(options)
         .await
-        .map_err(|err| format!("Falha ao conectar ao MySQL: {err}"))?;
+        .map_err(|err| {
+            let msg = format!("Falha ao conectar ao MySQL: {err}");
+            log::error!("[DB] {}", msg);
+            msg
+        })?;
+
+    log::info!("[DB] Pool de conexões criado (max=10).");
 
     {
         let mut pool_guard = estado.db_pool.lock().unwrap();
@@ -105,15 +133,22 @@ pub async fn ensure_ready(estado: &Arc<Estado>) -> Result<(), String> {
 
     initialize_schema(&pool).await?;
     seed_data_if_needed(&pool).await?;
+    log::info!("[DB] Banco pronto para uso.");
     Ok(())
 }
 
 pub async fn pool(estado: &Arc<Estado>) -> Result<MySqlPool, String> {
     let guard = estado.db_pool.lock().unwrap();
-    guard.clone().ok_or_else(|| "Pool de banco não inicializado".to_string())
+    guard.clone().ok_or_else(|| {
+        let msg = "Pool de banco não inicializado".to_string();
+        log::error!("[DB] {}", msg);
+        msg
+    })
 }
 
 async fn initialize_schema(pool: &MySqlPool) -> Result<(), String> {
+    log::info!("[DB] Inicializando schema (tabelas)...");
+
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS usuarios (
@@ -127,7 +162,11 @@ async fn initialize_schema(pool: &MySqlPool) -> Result<(), String> {
     )
     .execute(pool)
     .await
-    .map_err(|err| format!("Falha ao criar tabela usuarios: {err}"))?;
+    .map_err(|err| {
+        let msg = format!("Falha ao criar tabela usuarios: {err}");
+        log::error!("[DB] {}", msg);
+        msg
+    })?;
 
     sqlx::query(
         r#"
@@ -145,7 +184,11 @@ async fn initialize_schema(pool: &MySqlPool) -> Result<(), String> {
     )
     .execute(pool)
     .await
-    .map_err(|err| format!("Falha ao criar tabela servicos: {err}"))?;
+    .map_err(|err| {
+        let msg = format!("Falha ao criar tabela servicos: {err}");
+        log::error!("[DB] {}", msg);
+        msg
+    })?;
 
     sqlx::query(
         r#"
@@ -164,7 +207,11 @@ async fn initialize_schema(pool: &MySqlPool) -> Result<(), String> {
     )
     .execute(pool)
     .await
-    .map_err(|err| format!("Falha ao criar tabela heartbeats: {err}"))?;
+    .map_err(|err| {
+        let msg = format!("Falha ao criar tabela heartbeats: {err}");
+        log::error!("[DB] {}", msg);
+        msg
+    })?;
 
     sqlx::query(
         r#"
@@ -181,8 +228,13 @@ async fn initialize_schema(pool: &MySqlPool) -> Result<(), String> {
     )
     .execute(pool)
     .await
-    .map_err(|err| format!("Falha ao criar tabela alertas: {err}"))?;
+    .map_err(|err| {
+        let msg = format!("Falha ao criar tabela alertas: {err}");
+        log::error!("[DB] {}", msg);
+        msg
+    })?;
 
+    log::info!("[DB] Schema inicializado com sucesso.");
     Ok(())
 }
 
@@ -190,20 +242,31 @@ async fn seed_data_if_needed(pool: &MySqlPool) -> Result<(), String> {
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM usuarios")
         .fetch_one(pool)
         .await
-        .map_err(|err| format!("Falha ao validar dados iniciais: {err}"))?;
+        .map_err(|err| {
+            let msg = format!("Falha ao validar dados iniciais: {err}");
+            log::error!("[DB] {}", msg);
+            msg
+        })?;
 
     if count > 0 {
+        log::info!("[DB] Dados iniciais já existem ({} usuário(s)).", count);
         return Ok(());
     }
 
+    log::info!("[DB] Inserindo dados iniciais (seed)...");
     let usuario_id = Uuid::new_v4().to_string();
     sqlx::query("INSERT INTO usuarios (id, nome, email, senha) VALUES (?, ?, ?, ?)")
         .bind(&usuario_id)
-        .bind("Administrador MONITORA+").bind("admin@contec.com.br")
+        .bind("Administrador MONITORA+")
+        .bind("admin@contec.com.br")
         .bind("admin123")
         .execute(pool)
         .await
-        .map_err(|err| format!("Falha ao inserir usuário inicial: {err}"))?;
+        .map_err(|err| {
+            let msg = format!("Falha ao inserir usuário inicial: {err}");
+            log::error!("[DB] {}", msg);
+            msg
+        })?;
 
     let services = [
         ("Clínica Vitalis", "API pedidos", TipoServico::Api, 5),
@@ -231,7 +294,11 @@ async fn seed_data_if_needed(pool: &MySqlPool) -> Result<(), String> {
         .bind(&recebido_em)
         .execute(pool)
         .await
-        .map_err(|err| format!("Falha ao inserir serviço inicial: {err}"))?;
+        .map_err(|err| {
+            let msg = format!("Falha ao inserir serviço inicial '{}': {err}", nome);
+            log::error!("[DB] {}", msg);
+            msg
+        })?;
 
         let hb_id = Uuid::new_v4().to_string();
         sqlx::query(
@@ -259,13 +326,21 @@ async fn seed_data_if_needed(pool: &MySqlPool) -> Result<(), String> {
         })
         .execute(pool)
         .await
-        .map_err(|err| format!("Falha ao inserir heartbeat inicial: {err}"))?;
+        .map_err(|err| {
+            let msg = format!("Falha ao inserir heartbeat inicial: {err}");
+            log::error!("[DB] {}", msg);
+            msg
+        })?;
+
+        log::debug!("[DB] Serviço seed inserido: {} / {}", cliente, nome);
     }
 
+    log::info!("[DB] Seed concluído com sucesso.");
     Ok(())
 }
 
 pub async fn listar_servicos(estado: &Arc<Estado>) -> Result<Vec<Servico>, String> {
+    log::debug!("[DB] listar_servicos → consultando banco...");
     ensure_ready(estado).await?;
     let pool = pool(estado).await?;
     let servicos: Vec<ServicoRow> = sqlx::query_as::<_, ServicoRow>(
@@ -273,7 +348,13 @@ pub async fn listar_servicos(estado: &Arc<Estado>) -> Result<Vec<Servico>, Strin
     )
     .fetch_all(&pool)
     .await
-    .map_err(|err| format!("Falha ao consultar servicos: {err}"))?;
+    .map_err(|err| {
+        let msg = format!("Falha ao consultar servicos: {err}");
+        log::error!("[DB] {}", msg);
+        msg
+    })?;
+
+    log::info!("[DB] listar_servicos → {} serviço(s) encontrado(s).", servicos.len());
 
     let mut resultado = Vec::with_capacity(servicos.len());
     for servico in servicos {
@@ -301,7 +382,11 @@ async fn listar_heartbeats(pool: &MySqlPool, servico_id: &str) -> Result<Vec<Hea
     .bind(servico_id)
     .fetch_all(pool)
     .await
-    .map_err(|err| format!("Falha ao consultar heartbeats: {err}"))?;
+    .map_err(|err| {
+        let msg = format!("Falha ao consultar heartbeats: {err}");
+        log::error!("[DB] {}", msg);
+        msg
+    })?;
 
     Ok(rows
         .into_iter()
@@ -321,6 +406,7 @@ async fn listar_heartbeats(pool: &MySqlPool, servico_id: &str) -> Result<Vec<Hea
 }
 
 pub async fn listar_alertas(estado: &Arc<Estado>) -> Result<Vec<Alerta>, String> {
+    log::debug!("[DB] listar_alertas → consultando banco...");
     ensure_ready(estado).await?;
     let pool = pool(estado).await?;
     let rows: Vec<AlertaRow> = sqlx::query_as::<_, AlertaRow>(
@@ -328,7 +414,13 @@ pub async fn listar_alertas(estado: &Arc<Estado>) -> Result<Vec<Alerta>, String>
     )
     .fetch_all(&pool)
     .await
-    .map_err(|err| format!("Falha ao consultar alertas: {err}"))?;
+    .map_err(|err| {
+        let msg = format!("Falha ao consultar alertas: {err}");
+        log::error!("[DB] {}", msg);
+        msg
+    })?;
+
+    log::info!("[DB] listar_alertas → {} alerta(s) encontrado(s).", rows.len());
 
     Ok(rows
         .into_iter()
@@ -345,42 +437,69 @@ pub async fn listar_alertas(estado: &Arc<Estado>) -> Result<Vec<Alerta>, String>
 }
 
 pub async fn autenticar(estado: &Arc<Estado>, email: String, senha: String) -> Result<bool, String> {
+    let email_trim = email.trim();
+    log::info!("[DB] autenticar → tentativa de login para '{}'", email_trim);
     ensure_ready(estado).await?;
     let pool = pool(estado).await?;
-    let email = email.trim();
-    let senha = senha.trim();
 
-    if email.is_empty() || senha.is_empty() {
+    if email_trim.is_empty() || senha.trim().is_empty() {
+        log::warn!("[DB] autenticar → e-mail ou senha em branco.");
         return Err("Informe e-mail e senha.".into());
     }
 
     let row: Option<UsuarioRow> = sqlx::query_as::<_, UsuarioRow>(
         "SELECT id FROM usuarios WHERE email = ? AND senha = ? LIMIT 1",
     )
-    .bind(email)
-    .bind(senha)
+    .bind(email_trim)
+    .bind(senha.trim())
     .fetch_optional(&pool)
     .await
-    .map_err(|err| format!("Falha ao validar credenciais: {err}"))?;
+    .map_err(|err| {
+        let msg = format!("Falha ao validar credenciais: {err}");
+        log::error!("[DB] {}", msg);
+        msg
+    })?;
 
     let autenticado = row.is_some();
     *estado.autenticado.lock().unwrap() = autenticado;
+
+    if autenticado {
+        log::info!("[DB] autenticar → login bem-sucedido para '{}'", email_trim);
+    } else {
+        log::warn!("[DB] autenticar → credenciais inválidas para '{}'", email_trim);
+    }
+
     Ok(autenticado)
 }
 
 pub async fn resolver_alerta(estado: &Arc<Estado>, id: String) -> Result<bool, String> {
+    log::info!("[DB] resolver_alerta → id={}", id);
     ensure_ready(estado).await?;
     let pool = pool(estado).await?;
     let result = sqlx::query("UPDATE alertas SET resolvido = TRUE WHERE id = ?")
         .bind(&id)
         .execute(&pool)
         .await
-        .map_err(|err| format!("Falha ao resolver alerta: {err}"))?;
+        .map_err(|err| {
+            let msg = format!("Falha ao resolver alerta: {err}");
+            log::error!("[DB] {}", msg);
+            msg
+        })?;
 
-    Ok(result.rows_affected() > 0)
+    let ok = result.rows_affected() > 0;
+    if ok {
+        log::info!("[DB] resolver_alerta → alerta {} resolvido.", id);
+    } else {
+        log::warn!("[DB] resolver_alerta → alerta {} não encontrado (0 linhas afetadas).", id);
+    }
+    Ok(ok)
 }
 
 pub async fn salvar_heartbeat(estado: &Arc<Estado>, heartbeat: Heartbeat) -> Result<(), String> {
+    log::debug!(
+        "[DB] salvar_heartbeat → servico_id={} status={:?}",
+        heartbeat.servico_id, heartbeat.status
+    );
     ensure_ready(estado).await?;
     let pool = pool(estado).await?;
 
@@ -397,7 +516,11 @@ pub async fn salvar_heartbeat(estado: &Arc<Estado>, heartbeat: Heartbeat) -> Res
     .bind(heartbeat.metricas.latencia_ms.map(|v| v as i32))
     .execute(&pool)
     .await
-    .map_err(|err| format!("Falha ao salvar heartbeat no banco: {err}"))?;
+    .map_err(|err| {
+        let msg = format!("Falha ao salvar heartbeat no banco: {err}");
+        log::error!("[DB] {}", msg);
+        msg
+    })?;
 
     sqlx::query("UPDATE servicos SET status = ?, ultimo_heartbeat_em = ? WHERE id = ?")
         .bind(heartbeat.status.as_db())
@@ -405,12 +528,20 @@ pub async fn salvar_heartbeat(estado: &Arc<Estado>, heartbeat: Heartbeat) -> Res
         .bind(&heartbeat.servico_id)
         .execute(&pool)
         .await
-        .map_err(|err| format!("Falha ao atualizar status do serviço: {err}"))?;
+        .map_err(|err| {
+            let msg = format!("Falha ao atualizar status do serviço: {err}");
+            log::error!("[DB] {}", msg);
+            msg
+        })?;
 
     Ok(())
 }
 
 pub async fn salvar_alerta(estado: &Arc<Estado>, alerta: Alerta) -> Result<(), String> {
+    log::info!(
+        "[DB] salvar_alerta → id={} servico='{}' tipo='{}'",
+        alerta.id, alerta.servico_nome, alerta.tipo
+    );
     ensure_ready(estado).await?;
     let pool = pool(estado).await?;
 
@@ -426,7 +557,11 @@ pub async fn salvar_alerta(estado: &Arc<Estado>, alerta: Alerta) -> Result<(), S
     .bind(alerta.resolvido)
     .execute(&pool)
     .await
-    .map_err(|err| format!("Falha ao salvar alerta no banco: {err}"))?;
+    .map_err(|err| {
+        let msg = format!("Falha ao salvar alerta no banco: {err}");
+        log::error!("[DB] {}", msg);
+        msg
+    })?;
 
     Ok(())
 }
